@@ -1,0 +1,74 @@
+/* css/main.css — Clean Paper Frost DESIGN SYSTEM (Dark Frosted Obsidian Mode) */
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Tajawal:wght@300;400;500;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  --void:          #050508;
+  --layer-1:       rgba(18, 18, 26, 0.65);
+  --layer-2:       #0d0d12;
+  --layer-3:       #151520;
+  --edge:          rgba(255, 255, 255, 0.04);
+  --edge-hover:    rgba(255, 255, 255, 0.08);
+  --brand:         #6366f1;
+  --brand-light:   #818cf8;
+  --brand-dim:     rgba(99, 102, 241, 0.08);
+  --sky:           #38bdf8;
+  --ok:            #0d9488;
+  --ok-dim:        rgba(13, 148, 136, 0.08);
+  --warn:          #d97706;
+  --warn-dim:      rgba(217, 119, 6, 0.08);
+  --bad:           #f43f5e;
+  --bad-dim:       rgba(244, 63, 94, 0.08);
+  --ink-100:       #f8fafc;
+  --ink-200:       #cbd5e1;
+  --ink-300:       #94a3b8;
+  --ink-400:       #475569;
+  --font-sans:     'Tajawal', 'Inter', system-ui, sans-serif;
+  --font-display:  'Space Grotesk', 'Tajawal', sans-serif;
+  --font-mono:     'JetBrains Mono', monospace;
+}
+
+body {
+  background-color: var(--void);
+  color: var(--ink-100);
+  font-family: var(--font-sans);
+}
+
+.page-bg {
+  background: radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.12) 0%, rgba(5, 5, 8, 1) 70%);
+}
+
+.btn-gradient {
+  background: linear-gradient(135deg, var(--brand) 0%, #4f46e5 100%);
+  color: white;
+  transition: all 0.2s ease;
+}
+
+.btn-gradient:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background-color: var(--layer-3);
+  border: 1px solid var(--edge);
+  color: var(--ink-200);
+  transition: all 0.2s ease;
+}
+
+.btn-secondary:hover {
+  border-color: var(--edge-hover);
+  color: var(--ink-100);
+}
+
+.form-input, .form-select, .form-textarea {
+  background-color: var(--layer-3);
+  border: 1px solid var(--edge);
+  color: var(--ink-100);
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.form-input:focus, .form-select:focus, .form-textarea:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 2px var(--brand-dim);
+}
