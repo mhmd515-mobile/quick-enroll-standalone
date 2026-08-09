@@ -303,9 +303,10 @@ document.addEventListener('DOMContentLoaded', async () => {
           (locs || []).map(l => `<option value="${l.id}">${l.name}</option>`).join('');
       }
 
-      // Populate System Assets for Accessories Dropdown
-      await loadSystemAssetsForAccessories();
-      const { data: stats } = await client.from('asset_statuses').select('id, name').order('id');
+      // Statuses (Loaded BEFORE accessories to ensure dropdown is always populated)
+      const { data: stats, error: statErr } = await client.from('asset_statuses').select('id, name').order('id');
+      if (statErr) console.error('Error loading Asset Statuses:', statErr);
+
       if (statusSelect) {
         statusSelect.innerHTML = '<option value="">اختر حالة الأصل...</option>' +
           (stats || []).map(st => `<option value="${st.id}">${st.name}</option>`).join('');
@@ -315,6 +316,9 @@ document.addEventListener('DOMContentLoaded', async () => {
           statusSelect.value = activeOpt ? activeOpt.id : stats[0].id;
         }
       }
+
+      // Populate System Assets for Accessories Dropdown safely
+      await loadSystemAssetsForAccessories();
 
       // Auto-select Category & Subcategory if device type is specified in URL parameter or script
       const typeParam = (urlParams.get('type') || urlParams.get('subcategory') || urlParams.get('script') || '').toLowerCase().trim();
@@ -327,6 +331,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   async function loadSystemAssetsForAccessories() {
+    const systemAssetAccSelect = document.getElementById('acc-asset-select');
     if (!systemAssetAccSelect) return;
     try {
       systemAssetAccSelect.innerHTML = '<option value="">جاري تحميل الأصول المتاحة...</option>';
