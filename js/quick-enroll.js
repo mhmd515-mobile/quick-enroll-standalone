@@ -22,105 +22,139 @@ document.addEventListener('DOMContentLoaded', async () => {
   const assignedToInput = document.getElementById('assigned-to');
   const storIdInput = document.getElementById('stor-id');
   const notesInput = document.getElementById('asset-notes');
-  const systemAssetAccSelect = document.getElementById('system-asset-accessory-select');
-  const addSystemAssetAccBtn = document.getElementById('add-system-asset-acc-btn');
-  const linkedSystemAssetsList = document.getElementById('linked-system-assets-list');
+  // ─── Accessories State & Logic (Exact match with add-asset.js) ─────────────
+  let accessoriesList = [];
+  const accIsAssetCheckbox = document.getElementById('acc-is-asset');
+  const accAssetSelectGroup = document.getElementById('acc-asset-select-group');
+  const accNameInputGroup = document.getElementById('acc-name-input-group');
+  const addAccessoryBtn = document.getElementById('add-accessory-btn');
+  const accItIdInput = document.getElementById('acc-it-id');
+  const accNameInput = document.getElementById('acc-name-input');
+  const accessoriesTbody = document.getElementById('accessories-tbody');
 
-  let linkedSystemAssets = [];
-
-  // Accessories chips interaction logic
-  const accChips = document.querySelectorAll('.acc-chip');
-  if (accChips.length > 0) {
-    accChips.forEach(chip => {
-      chip.addEventListener('click', () => {
-        chip.classList.toggle('active-chip');
-        if (chip.classList.contains('active-chip')) {
-          chip.classList.remove('bg-layer-3', 'text-ink-200', 'border-edge');
-          chip.classList.add('bg-brand/20', 'text-brand', 'border-brand', 'font-bold', 'shadow-sm');
-        } else {
-          chip.classList.remove('bg-brand/20', 'text-brand', 'border-brand', 'font-bold', 'shadow-sm');
-          chip.classList.add('bg-layer-3', 'text-ink-200', 'border-edge');
-        }
-        updateNotesFromChipsAndLinkedAssets();
-      });
+  if (accIsAssetCheckbox) {
+    accIsAssetCheckbox.addEventListener('change', (e) => {
+      if (e.target.checked) {
+        accAssetSelectGroup?.classList.remove('hidden');
+        accNameInputGroup?.classList.add('hidden');
+      } else {
+        accAssetSelectGroup?.classList.add('hidden');
+        accNameInputGroup?.classList.remove('hidden');
+      }
     });
   }
 
-  // System Assets Accessories Add Button Listener
-  if (addSystemAssetAccBtn && systemAssetAccSelect) {
-    addSystemAssetAccBtn.addEventListener('click', () => {
-      const selectedOpt = systemAssetAccSelect.options[systemAssetAccSelect.selectedIndex];
-      if (!selectedOpt || !selectedOpt.value) return;
+  function renderAccessoriesTable() {
+    if (!accessoriesTbody) return;
+    if (accessoriesList.length === 0) {
+      accessoriesTbody.innerHTML = `
+        <tr>
+          <td colspan="3" class="text-center py-4 text-xs text-ink-300">لا توجد ملحقات مسجلة حالياً لهذا الأصل.</td>
+        </tr>`;
+      return;
+    }
 
-      const assetId = selectedOpt.value;
-      const itId = selectedOpt.dataset.it || '';
-      const subName = selectedOpt.dataset.sub || '';
-      const sn = selectedOpt.dataset.sn || '';
+    accessoriesTbody.innerHTML = '';
+    accessoriesList.forEach((item, idx) => {
+      const tr = document.createElement('tr');
+      tr.className = 'border-b border-edge/40 last:border-0';
+      const typeLabel = item.is_asset
+        ? '<span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-ok/20 text-ok border border-ok/30">أصل مسجل</span>'
+        : '<span class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-layer-3 text-ink-300 border border-edge">ملحق نصي</span>';
 
-      if (linkedSystemAssets.some(a => a.id === assetId)) {
-        alert('هذا الأصل مضاف كـ ملحق بالفعل');
-        return;
+      tr.innerHTML = `
+        <td class="p-2.5 font-semibold text-ink-100">${item.name}</td>
+        <td class="p-2.5">${typeLabel}</td>
+        <td class="p-2.5 text-center">
+          <button type="button" class="text-bad hover:bg-bad/20 p-1 rounded-lg transition-colors cursor-pointer" onclick="window.removeAccessory(${idx})" title="حذف">
+            <span class="material-symbols-rounded text-base">delete</span>
+          </button>
+        </td>
+      `;
+      accessoriesTbody.appendChild(tr);
+    });
+  }
+
+  window.removeAccessory = (index) => {
+    accessoriesList.splice(index, 1);
+    renderAccessoriesTable();
+  };
+
+  if (addAccessoryBtn) {
+    addAccessoryBtn.addEventListener('click', async () => {
+      const isAsset = accIsAssetCheckbox ? accIsAssetCheckbox.checked : false;
+      let newItem = null;
+
+      if (isAsset) {
+        const itIdValue = accItIdInput ? accItIdInput.value.trim() : '';
+        if (!itIdValue) {
+          alert('الرجاء إدخال كود IT للأصل');
+          return;
+        }
+
+        if (itIdInput && itIdValue.toLowerCase() === itIdInput.value.trim().toLowerCase()) {
+          alert('لا يمكن إضافة الأصل كملحق لنفسه');
+          return;
+        }
+
+        addAccessoryBtn.disabled = true;
+        const originalText = addAccessoryBtn.innerHTML;
+        addAccessoryBtn.innerHTML = '<span class="material-symbols-rounded animate-spin text-sm">autorenew</span> جاري التحقق...';
+
+        try {
+          const { data: asset, error } = await client
+            .from('assets')
+            .select(`
+              id,
+              it_id,
+              sub_Categories ( name )
+            `)
+            .eq('it_id', itIdValue)
+            .maybeSingle();
+
+          if (error || !asset) {
+            alert('كود IT المدخل غير موجود في النظام');
+            return;
+          }
+
+          if (accessoriesList.some(item => item.is_asset && item.slave_asset_id === asset.id)) {
+            alert('هذا الملحق مضاف بالفعل');
+            return;
+          }
+
+          newItem = {
+            is_asset: true,
+            slave_asset_id: asset.id,
+            name: `${asset.it_id} - ${asset.sub_Categories?.name || ''}`,
+          };
+        } catch (err) {
+          console.error(err);
+          alert('حدث خطأ أثناء التحقق من كود IT');
+          return;
+        } finally {
+          addAccessoryBtn.disabled = false;
+          addAccessoryBtn.innerHTML = originalText;
+        }
+      } else {
+        const nameValue = accNameInput ? accNameInput.value.trim() : '';
+        if (!nameValue) {
+          alert('الرجاء إدخال اسم الملحق');
+          return;
+        }
+        newItem = {
+          is_asset: false,
+          slave_asset_id: null,
+          name: nameValue,
+        };
       }
 
-      linkedSystemAssets.push({ id: assetId, itId, subName, sn });
-      renderLinkedSystemAssets();
-      updateNotesFromChipsAndLinkedAssets();
+      if (newItem) {
+        accessoriesList.push(newItem);
+        if (accItIdInput) accItIdInput.value = '';
+        if (accNameInput) accNameInput.value = '';
+        renderAccessoriesTable();
+      }
     });
-  }
-
-  function renderLinkedSystemAssets() {
-    if (!linkedSystemAssetsList) return;
-    linkedSystemAssetsList.innerHTML = '';
-    linkedSystemAssets.forEach((acc, idx) => {
-      const badge = document.createElement('div');
-      badge.className = 'px-3 py-1.5 rounded-xl border border-brand/40 bg-brand/10 text-ink-100 text-xs font-semibold flex items-center gap-1.5 shadow-sm';
-      badge.innerHTML = `
-        <span>🔗</span>
-        <span class="text-brand font-bold">${acc.itId}</span>
-        <span>- ${acc.subName}${acc.sn ? ' (' + acc.sn + ')' : ''}</span>
-        <button type="button" class="text-bad hover:bg-bad/20 rounded-full w-4 h-4 flex items-center justify-center font-bold text-xs ml-1 cursor-pointer" title="إزالة">×</button>
-      `;
-      badge.querySelector('button').addEventListener('click', () => {
-        linkedSystemAssets.splice(idx, 1);
-        renderLinkedSystemAssets();
-        updateNotesFromChipsAndLinkedAssets();
-      });
-      linkedSystemAssetsList.appendChild(badge);
-    });
-  }
-
-  function updateNotesFromChipsAndLinkedAssets() {
-    if (!notesInput) return;
-    const selectedChips = Array.from(document.querySelectorAll('.acc-chip.active-chip'))
-      .map(c => c.dataset.acc);
-
-    const linkedAssetStrs = linkedSystemAssets.map(a => `[${a.itId} - ${a.subName}${a.sn ? ' S/N:' + a.sn : ''}]`);
-
-    let currentVal = notesInput.value || '';
-    let customPart = '';
-
-    if (currentVal.includes(' | ')) {
-      const parts = currentVal.split(' | ');
-      const customParts = parts.filter(p => !p.trim().startsWith('الملحقات:') && !p.trim().startsWith('أصول ملحقة من المنظومة:'));
-      customPart = customParts.join(' | ').trim();
-    } else if (currentVal.startsWith('الملحقات:') || currentVal.startsWith('أصول ملحقة من المنظومة:')) {
-      customPart = '';
-    } else {
-      customPart = currentVal.trim();
-    }
-
-    const sectionParts = [];
-    if (selectedChips.length > 0) {
-      sectionParts.push('الملحقات: ' + selectedChips.join('، '));
-    }
-    if (linkedAssetStrs.length > 0) {
-      sectionParts.push('أصول ملحقة من المنظومة: ' + linkedAssetStrs.join('، '));
-    }
-    if (customPart) {
-      sectionParts.push(customPart);
-    }
-
-    notesInput.value = sectionParts.join(' | ');
   }
 
   // Step 2 Elements (Import Data Button & Preview)
@@ -775,6 +809,25 @@ document.addEventListener('DOMContentLoaded', async () => {
           }
         }
 
+        // Save accessories into asset_accessories table (exact match with add-asset.js)
+        if (isUpdate && targetAssetId) {
+          await client.from('asset_accessories').delete().eq('master_asset_id', targetAssetId);
+        }
+
+        if (accessoriesList.length > 0 && targetAssetId) {
+          const accPayload = accessoriesList.map(a => ({
+            master_asset_id: targetAssetId,
+            is_asset: a.is_asset,
+            slave_asset_id: a.is_asset ? a.slave_asset_id : null,
+            name: a.is_asset ? null : a.name
+          }));
+
+          const { error: accErr } = await client
+            .from('asset_accessories')
+            .insert(accPayload);
+          if (accErr) console.error('Error inserting asset_accessories:', accErr);
+        }
+
         if (importedHardware?.id && targetAssetId) {
           await client
             .from('pc_hardware_scans')
@@ -792,13 +845,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Reset form for next device entry in standalone mode
         setTimeout(async () => {
           form.reset();
-          linkedSystemAssets = [];
-          renderLinkedSystemAssets();
+          accessoriesList = [];
+          renderAccessoriesTable();
           if (notesInput) notesInput.value = '';
-          document.querySelectorAll('.acc-chip.active-chip').forEach(chip => {
-            chip.classList.remove('active-chip', 'bg-brand/20', 'text-brand', 'border-brand', 'font-bold', 'shadow-sm');
-            chip.classList.add('bg-layer-3', 'text-ink-200', 'border-edge');
-          });
+          if (accItIdInput) accItIdInput.value = '';
+          if (accNameInput) accNameInput.value = '';
           if (specsEmpty) specsEmpty.classList.remove('hidden');
           if (specsGrid) specsGrid.classList.add('hidden');
           if (dynamicContainer) dynamicContainer.classList.add('hidden');

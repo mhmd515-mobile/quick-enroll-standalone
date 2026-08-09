@@ -127,64 +127,67 @@
 
         </div>
 
-        <!-- Accessories & Notes Field (خامة إضافة الملحقات والملاحظات) -->
-        <div class="bg-layer-3/40 border border-edge/60 rounded-2xl p-4 space-y-3">
+        <!-- Section: Asset Accessories (ملحقات الأصل - كصفحة الإضافة العادية) -->
+        <div class="bg-layer-3/40 border border-edge/60 rounded-2xl p-4 space-y-4">
           <div class="flex items-center justify-between border-b border-edge/60 pb-2">
             <div class="flex items-center gap-2 text-xs font-bold text-brand uppercase tracking-wider">
-              <span class="material-symbols-rounded text-base">extension</span>
-              خامة إضافة الملحقات والملاحظات (Accessories & Notes)
+              <span class="material-symbols-rounded text-base">widgets</span>
+              ملحقات الأصل (Asset Accessories)
             </div>
-            <span class="text-[11px] text-ink-300">حدد الملحقات المرفقة أو اكتبها</span>
+            <span class="text-[11px] text-ink-300">أضف ملحقات نصية أو ربط بأصول مسجلة في النظام</span>
           </div>
 
-          <!-- Quick Selection Chips -->
-          <div>
-            <label class="block mb-1.5 text-xs font-semibold text-ink-200">اختر الملحقات المرفقة مع الجهاز (اختيار سريع):</label>
-            <div class="flex flex-wrap gap-2" id="accessories-chips">
-              <button type="button" data-acc="لوحة مفاتيح (Keyboard)" class="acc-chip px-3 py-1.5 rounded-xl border border-edge text-xs font-medium bg-layer-3 text-ink-200 hover:border-brand transition-all flex items-center gap-1.5 select-none cursor-pointer">
-                <span>⌨️</span> لوحة مفاتيح
-              </button>
-              <button type="button" data-acc="ماوس (Mouse)" class="acc-chip px-3 py-1.5 rounded-xl border border-edge text-xs font-medium bg-layer-3 text-ink-200 hover:border-brand transition-all flex items-center gap-1.5 select-none cursor-pointer">
-                <span>🖱️</span> ماوس
-              </button>
-              <button type="button" data-acc="شاشة خارجية (Monitor)" class="acc-chip px-3 py-1.5 rounded-xl border border-edge text-xs font-medium bg-layer-3 text-ink-200 hover:border-brand transition-all flex items-center gap-1.5 select-none cursor-pointer">
-                <span>🖥️</span> شاشة خارجية
-              </button>
-              <button type="button" data-acc="حقيبة (Bag)" class="acc-chip px-3 py-1.5 rounded-xl border border-edge text-xs font-medium bg-layer-3 text-ink-200 hover:border-brand transition-all flex items-center gap-1.5 select-none cursor-pointer">
-                <span>🎒</span> حقيبة محمول
-              </button>
-              <button type="button" data-acc="شاحن / محول (Charger)" class="acc-chip px-3 py-1.5 rounded-xl border border-edge text-xs font-medium bg-layer-3 text-ink-200 hover:border-brand transition-all flex items-center gap-1.5 select-none cursor-pointer">
-                <span>🔌</span> شاحن / محول
-              </button>
-              <button type="button" data-acc="سماعة (Headset)" class="acc-chip px-3 py-1.5 rounded-xl border border-edge text-xs font-medium bg-layer-3 text-ink-200 hover:border-brand transition-all flex items-center gap-1.5 select-none cursor-pointer">
-                <span>🎧</span> سماعة
-              </button>
-              <button type="button" data-acc="كابل توصيل (Cable)" class="acc-chip px-3 py-1.5 rounded-xl border border-edge text-xs font-medium bg-layer-3 text-ink-200 hover:border-brand transition-all flex items-center gap-1.5 select-none cursor-pointer">
-                <span>🔌</span> كابل HDMI/VGA/طاقة
+          <!-- Add accessory controls -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end bg-layer-3/60 p-3 rounded-xl border border-edge/60">
+            <div class="flex flex-col">
+              <label class="block text-xs font-semibold text-ink-200 mb-1.5">نوع الملحق</label>
+              <div class="flex items-center gap-2 h-10 px-3 bg-layer-3 border border-edge rounded-xl">
+                <input type="checkbox" id="acc-is-asset" class="w-4 h-4 rounded text-brand focus:ring-brand border-edge cursor-pointer">
+                <label for="acc-is-asset" class="text-xs font-semibold text-ink-100 cursor-pointer select-none mb-0">أصل مسجل في النظام</label>
+              </div>
+            </div>
+            
+            <!-- Asset IT ID Input (shown if checked) -->
+            <div id="acc-asset-select-group" class="hidden flex-col">
+              <label for="acc-it-id" class="block text-xs font-semibold text-ink-200 mb-1.5">كود IT للأصل الملحق</label>
+              <input id="acc-it-id" type="text" class="form-input w-full text-xs bg-layer-3 border-edge rounded-xl text-ink-100 p-2.5 font-mono focus:border-brand" placeholder="مثال: PC-001">
+            </div>
+
+            <!-- Text Input (shown if unchecked) -->
+            <div id="acc-name-input-group" class="flex flex-col">
+              <label for="acc-name-input" class="block text-xs font-semibold text-ink-200 mb-1.5">اسم الملحق</label>
+              <input id="acc-name-input" type="text" class="form-input w-full text-xs bg-layer-3 border-edge rounded-xl text-ink-100 p-2.5 focus:border-brand" placeholder="مثال: شاحن، كيبورد...">
+            </div>
+
+            <div class="flex justify-end">
+              <button id="add-accessory-btn" type="button" class="btn-secondary w-full text-xs font-bold py-2.5 px-4 rounded-xl flex items-center justify-center gap-1 shadow-sm" style="height:40px;">
+                <span class="material-symbols-rounded text-sm">add</span>إضافة ملحق
               </button>
             </div>
           </div>
 
-          <!-- Link Existing System Asset as Accessory (ربط ملحق كـ أصل موجود في المنظومة) -->
-          <div class="border-t border-edge/60 pt-3 space-y-2">
-            <label class="block text-xs font-semibold text-ink-200">ربط ملحق كـ أصل مسجل في المنظومة (شاشة، طابعة، ملحق آخر...):</label>
-            <div class="flex gap-2">
-              <select id="system-asset-accessory-select" class="form-select flex-1 text-xs bg-layer-3 border-edge rounded-xl text-ink-100 p-2.5 focus:border-brand">
-                <option value="">جاري تحميل أصول المنظومة المتاحة كـ ملحقات...</option>
-              </select>
-              <button id="add-system-asset-acc-btn" type="button" class="btn-secondary text-xs px-3.5 py-2 rounded-xl flex items-center gap-1 font-bold shrink-0 shadow-sm">
-                <span class="material-symbols-rounded text-sm">add_link</span>
-                إضافة كـ ملحق
-              </button>
-            </div>
-            <!-- Container for Linked System Assets Badges -->
-            <div id="linked-system-assets-list" class="flex flex-wrap gap-2 pt-1"></div>
+          <!-- Accessories Table List -->
+          <div class="overflow-x-auto border border-edge/60 rounded-xl bg-layer-3/30">
+            <table class="w-full text-right text-xs">
+              <thead>
+                <tr class="border-b border-edge/60 bg-layer-3/60 text-ink-300">
+                  <th class="p-2.5">الاسم / الكود</th>
+                  <th class="p-2.5">النوع</th>
+                  <th class="p-2.5 text-center w-20">إجراء</th>
+                </tr>
+              </thead>
+              <tbody id="accessories-tbody">
+                <tr>
+                  <td colspan="3" class="text-center py-4 text-xs text-ink-300">لا توجد ملحقات مسجلة حالياً لهذا الأصل.</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
 
-          <!-- Textarea for Accessories & Notes -->
-          <div>
-            <label for="asset-notes" class="block mb-1 text-xs font-semibold text-ink-200">تفاصيل الملحقات / الملاحظات (تتحدث تلقائياً عند الاختيار):</label>
-            <textarea id="asset-notes" rows="2" placeholder="أدخل ملحقات إضافية أو ملاحظات (مثال: شاحن أصلي 65W، ماوس لاسلكي، شاشة Dell 24 بوصة)..." class="form-textarea w-full text-xs bg-layer-3 border-edge rounded-xl text-ink-100 p-2.5 focus:border-brand"></textarea>
+          <!-- Notes Textarea -->
+          <div class="pt-2">
+            <label for="asset-notes" class="block mb-1 text-xs font-semibold text-ink-200">ملاحظات إضافية على الأصل:</label>
+            <textarea id="asset-notes" rows="2" placeholder="أدخل أي ملاحظات إضافية..." class="form-textarea w-full text-xs bg-layer-3 border-edge rounded-xl text-ink-100 p-2.5 focus:border-brand"></textarea>
           </div>
         </div>
 
