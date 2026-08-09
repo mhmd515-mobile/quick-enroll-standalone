@@ -6,19 +6,9 @@ param(
 
 # Server Configuration
 $ServerHost   = '10.15.30.241'             # Server IP
-$SupabasePort = '8001'                     # Supabase API Port
 $WebPort      = '8087'                     # Quick Enroll Standalone Nginx Port
-$WebPath      = ''                         # Optional subpath prefix e.g. 'quick-enroll-standalone' or leave empty if root
+$WebPath      = ''                         # Optional subpath prefix, leave empty if root
 
-$SupabaseUrl = "http://${ServerHost}:${SupabasePort}/rest/v1/pc_hardware_scans?on_conflict=serial_number"
-$SupabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiZXhwIjoyMDk5OTk5OTk5fQ.jUHvY4idV2KczdL5qLA4eX_unuyiv7rxW_8hHfnBF0I'
-
-$Headers = @{
-    'apikey'        = $SupabaseKey
-    'Authorization' = 'Bearer ' + $SupabaseKey
-    'Content-Type'  = 'application/json'
-    'Prefer'        = 'resolution=merge-duplicates'
-}
 
 try {
     Write-Host 'Scanning system specifications...' -ForegroundColor Cyan
@@ -200,55 +190,69 @@ try {
         if ($NetAdapter.IPAddress) { $IpAddress = $NetAdapter.IPAddress[0] }
     }
 
-    $NowIso = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+    # Screen Size Detection (from EDID via WMI - works for built-in laptop screens)
+    $ScreenSize = 'N/A'
+    try {
+        $monitors = Get-CimInstance -Namespace root\wmi -ClassName WmiMonitorBasicDisplayParams -ErrorAction SilentlyContinue
+        $sizeList = @()
+        foreach ($mon in $monitors) {
+            $h = $mon.MaxHorizontalImageSize
+            $v = $mon.MaxVerticalImageSize
+            if ($h -and $v -and $h -gt 0 -and $v -gt 0) {
+                $diagCm = [math]::Sqrt(($h * $h) + ($v * $v))
+                $diagInch = [math]::Round($diagCm / 2.54, 1)
+                if ($diagInch -gt 5 -and $diagInch -lt 120) {
+                    $sizeList += $diagInch
+                }
+            }
+        }
+        if ($sizeList.Count -gt 0) {
+            # Take the smallest screen (most likely the built-in laptop display)
+            $smallest = ($sizeList | Measure-Object -Minimum).Minimum
+            $ScreenSize = [string]$smallest + '"'
+        }
+    } catch {}
 
-    $PayloadObj = [ordered]@{
-        computer_name = $ComputerName
-        serial_number = $SerialNumber
-        os_name       = $OS
-        cpu_info      = $Cpu
-        ram_gb        = $RamGb
-        ram_count     = $RamCount
-        ram_type      = $RamType
-        vram_mb       = $VramGbTotal
-        motherboard   = $Motherboard
-        disks         = $Disks
-        disk_type     = $DiskTypeSummary
-        gpu           = $Gpu
-        mac_address   = $MacAddress
-        ip_address    = $IpAddress
-        last_scanned  = $NowIso
-    }
+    Write-Host 'Hardware scan complete — preparing enrollment URL...' -ForegroundColor Cyan
 
-    $JsonPayload = $PayloadObj | ConvertTo-Json -Depth 3
+    Write-Host 'Building URL and opening Quick Enrollment Form...' -ForegroundColor Green
 
-    Write-Host 'Sending scan payload to Supabase REST API...' -ForegroundColor Gray
-    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    $null = Invoke-RestMethod -Uri $SupabaseUrl -Method Post -Headers $Headers -Body $JsonPayload -ErrorAction Stop
-
-    Write-Host 'Opening Quick Enrollment Form on Server URL...' -ForegroundColor Green
-
-    $EscSerial = [uri]::EscapeDataString($SerialNumber)
+    # Encode all hardware specs as URL params — no database storage needed
     $PathPrefix = ""
     if ($WebPath -and $WebPath.Trim() -ne "") {
         $PathPrefix = "/" + $WebPath.Trim("/")
     }
 
-    $WebUrl = "http://${ServerHost}:${WebPort}${PathPrefix}/index.html?serial=${EscSerial}"
+    $Params = [System.Collections.Generic.List[string]]::new()
+    $Params.Add("serial=" + [uri]::EscapeDataString($SerialNumber))
+    $Params.Add("comp="   + [uri]::EscapeDataString($ComputerName))
+    $Params.Add("cpu="    + [uri]::EscapeDataString($Cpu))
+    $Params.Add("ram="    + $RamGb)
+    $Params.Add("ram_type=" + [uri]::EscapeDataString($RamType))
+    $Params.Add("ram_count=" + $RamCount)
+    $Params.Add("gpu="    + [uri]::EscapeDataString($Gpu))
+    $Params.Add("vram="   + $VramGbTotal)
+    $Params.Add("disks="  + [uri]::EscapeDataString($Disks))
+    $Params.Add("disk_type=" + [uri]::EscapeDataString($DiskTypeSummary))
+    $Params.Add("mb="     + [uri]::EscapeDataString($Motherboard))
+    $Params.Add("mac="    + [uri]::EscapeDataString($MacAddress))
+    $Params.Add("ip="     + [uri]::EscapeDataString($IpAddress))
+    $Params.Add("screen=" + [uri]::EscapeDataString($ScreenSize))
     if ($DeviceType) {
-        $EscType = [uri]::EscapeDataString($DeviceType)
-        $WebUrl += "&type=${EscType}"
+        $Params.Add("type=" + [uri]::EscapeDataString($DeviceType))
     }
 
+    $WebUrl = "http://${ServerHost}:${WebPort}${PathPrefix}/index.html?" + [string]::Join("&", $Params)
     Start-Process $WebUrl
 
     Write-Host '============================================' -ForegroundColor Green
-    Write-Host '  SUCCESS! Hardware scanned & sent to server.' -ForegroundColor Green
+    Write-Host '  SUCCESS! Hardware scanned successfully.' -ForegroundColor Green
     Write-Host ('  Serial S/N:   ' + $SerialNumber) -ForegroundColor White
-    Write-Host ('  RAM Type:     ' + $RamType + ' (' + $RamGb + ' GB, ' + $RamCount + ' sticks)') -ForegroundColor White
+    Write-Host ('  RAM:          ' + $RamType + ' ' + $RamGb + ' GB (' + $RamCount + ' sticks)') -ForegroundColor White
     Write-Host ('  VRAM:         ' + $VramGbTotal + ' GB') -ForegroundColor White
-    Write-Host ('  Disk Type:    ' + $DiskTypeSummary) -ForegroundColor White
-    Write-Host ('  Server Web:   ' + $WebUrl) -ForegroundColor Cyan
+    Write-Host ('  Disk:         ' + $DiskTypeSummary) -ForegroundColor White
+    Write-Host ('  Screen:       ' + $ScreenSize) -ForegroundColor White
+    Write-Host ('  Opening URL:  ' + $WebUrl) -ForegroundColor Cyan
     Write-Host '============================================' -ForegroundColor Green
 }
 catch {

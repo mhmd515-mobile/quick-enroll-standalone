@@ -179,13 +179,70 @@ document.addEventListener('DOMContentLoaded', async () => {
   const dynamicContainer = document.getElementById('dynamic-fields-container');
   const dynamicGrid = document.getElementById('dynamic-fields-grid');
 
-  // 1. Initial Load: Auto-import hardware specs FIRST if scan parameters exist in URL
-  if (urlParams.get('serial') || urlParams.get('scanId') || urlParams.get('computer')) {
-    await performImportData();
+  // 1. Initial Load: read hardware specs from URL params (sent by bat script)
+  function loadHardwareFromUrlParams() {
+    const serial = urlParams.get('serial');
+    const cpu    = urlParams.get('cpu');
+    if (!serial && !cpu) return false;
+
+    importedHardware = {
+      serial_number : serial                       || '',
+      computer_name : urlParams.get('comp')        || '',
+      cpu_info      : cpu                          || '',
+      ram_gb        : urlParams.get('ram')         || '',
+      ram_type      : urlParams.get('ram_type')    || 'DDR4',
+      ram_count     : parseInt(urlParams.get('ram_count') || '1'),
+      gpu           : urlParams.get('gpu')         || '',
+      vram_mb       : urlParams.get('vram')        || '',
+      disks         : urlParams.get('disks')       || '',
+      disk_type     : urlParams.get('disk_type')   || '',
+      motherboard   : urlParams.get('mb')          || '',
+      mac_address   : urlParams.get('mac')         || '',
+      ip_address    : urlParams.get('ip')          || '',
+      screen_size   : urlParams.get('screen')      || '',
+    };
+
+    // Pre-fill any visible spec inputs if they exist in the HTML
+    const specMap = {
+      'spec-serial'    : importedHardware.serial_number,
+      'spec-cpu'       : importedHardware.cpu_info,
+      'spec-ram'       : importedHardware.ram_gb,
+      'spec-ram-type'  : importedHardware.ram_type,
+      'spec-gpu'       : importedHardware.gpu,
+      'spec-disks'     : importedHardware.disks,
+      'spec-disk-type' : importedHardware.disk_type,
+      'spec-motherboard': importedHardware.motherboard,
+      'spec-mac'       : importedHardware.mac_address,
+    };
+    Object.entries(specMap).forEach(([id, val]) => {
+      const el = document.getElementById(id);
+      if (el && val) el.value = val;
+    });
+
+    // Auto-fill assigned_to with computer name if empty
+    if (assignedToInput && !assignedToInput.value && importedHardware.computer_name) {
+      assignedToInput.value = importedHardware.computer_name;
+    }
+
+    return true;
   }
+
+  const hwLoaded = loadHardwareFromUrlParams();
 
   // Populate Mandatory Dropdowns
   await loadDropdowns();
+
+  // Auto-select category/subcategory if bat script passed ?type=... in URL
+  const deviceTypeParam = urlParams.get('type');
+  if (deviceTypeParam) {
+    await autoSelectCategoryAndSubcategory(deviceTypeParam);
+  }
+
+  // After dropdowns loaded, fill dynamic fields if subcategory already selected
+  if (hwLoaded && subcategorySelect && subcategorySelect.value) {
+    await loadDynamicFields(subcategorySelect.value);
+    showStatus('✔ تم استيراد مواصفات الجهاز تلقائياً! أكمل البيانات الإلزامية ثم اضغط إدخال.', false);
+  }
 
   // Category Change Listener to load Subcategories
   if (categorySelect) {
@@ -557,6 +614,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (has('serial', 'سيريال', 'تسلسلي')) {
       return importedHardware.serial_number || '';
     }
+    if (has('screen', 'شاشة', 'display', 'بوصة', 'inch', 'size', 'حجم') && !has('vram', 'gpu', 'كرت')) {
+      return importedHardware.screen_size || '';
+    }
     return '';
   }
 
@@ -592,127 +652,34 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   async function performImportData() {
-    let originalText = '';
     if (importDataBtn) {
-      originalText = importDataBtn.innerHTML;
       importDataBtn.disabled = true;
-      importDataBtn.innerHTML = '<span class="material-symbols-rounded animate-spin text-lg">progress_activity</span> جاري استيراد مواصفات الجهاز...';
+      importDataBtn.innerHTML = '<span class="material-symbols-rounded animate-spin text-lg">progress_activity</span> جاري الاستيراد...';
     }
 
     try {
-      const scanId = urlParams.get('scanId');
-      const serial = urlParams.get('serial');
-      const compName = urlParams.get('computer');
-
-      let fetchedData = null;
-
-      // Strict query: Only fetch scan if explicit serial, scanId, or computer name is provided in URL
-      if (scanId || serial || compName) {
-        let query = client.from('pc_hardware_scans').select('*');
-        if (scanId) {
-          query = query.eq('id', scanId);
-        } else if (serial) {
-          query = query.eq('serial_number', serial);
-        } else if (compName) {
-          query = query.eq('computer_name', compName);
+      const loaded = loadHardwareFromUrlParams();
+      if (loaded) {
+        if (subcategorySelect && subcategorySelect.value) {
+          await loadDynamicFields(subcategorySelect.value);
         }
-
-        const { data } = await query.order('last_scanned', { ascending: false }).limit(1).maybeSingle();
-        if (data) fetchedData = data;
-      }
-
-      if (!fetchedData) {
-        if (specsEmpty) specsEmpty.classList.add('hidden');
-        if (specsGrid) specsGrid.classList.remove('hidden');
-
-        if (serial && specSerial) {
-          specSerial.value = serial;
+        showStatus('✔ تم عرض مواصفات الجهاز! أكمل البيانات الإلزامية ثم اضغط إدخال.', false);
+        if (importDataBtn) {
+          importDataBtn.innerHTML = '<span class="material-symbols-rounded text-lg">check_circle</span> تم عرض المواصفات';
         }
-
-        const downloadLink = `<a href="sync-hardware.bat" download="sync-hardware.bat" type="application/octet-stream" class="underline font-bold text-white ml-1">تحميل سكربت الفحص (.bat)</a>`;
-        if (serial) {
-          showStatus(`⚠️ لم يتم العثور على سجل فحص للرقم التسلسلي (${serial}). يمكنك تعديل الخانات يدويًا أدناه أو ${downloadLink}.`, true);
-        } else {
-          showStatus(`⚠️ يمكنك كتابة وتعديل المواصفات يدويًا في الخانات أدناه أو ${downloadLink} لجلبه تلقائياً.`, true);
+      } else {
+        showStatus('⚠️ لم يتم العثور على بيانات جهاز في الرابط. يرجى تشغيل سكربت الفحص (.bat) أولاً.', true);
+        if (importDataBtn) {
+          importDataBtn.disabled = false;
+          importDataBtn.innerHTML = '<span class="material-symbols-rounded text-sm">download</span> استيراد البيانات';
         }
-        return;
       }
-
-      importedHardware = fetchedData;
-
-      if (subcategorySelect && subcategorySelect.value) {
-        await loadDynamicFields(subcategorySelect.value);
-      }
-
-      const specGpu = document.getElementById('spec-gpu');
-      const specMac = document.getElementById('spec-mac');
-      const specRamType = document.getElementById('spec-ram-type');
-      const specDiskType = document.getElementById('spec-disk-type');
-
-      if (specSerial) specSerial.value = importedHardware.serial_number || '';
-      if (specCpu) specCpu.value = importedHardware.cpu_info || '';
-      if (specRam) specRam.value = importedHardware.ram_gb ? `${importedHardware.ram_gb}` : '';
-      if (specRamType) specRamType.value = importedHardware.ram_type || 'DDR4';
-      if (specDiskType) specDiskType.value = importedHardware.disk_type || 'SSD';
-      if (specMac) specMac.value = importedHardware.mac_address || '';
-      if (specGpu) specGpu.value = importedHardware.gpu || '';
-      if (specDisks) specDisks.value = importedHardware.disks || '';
-      if (specMb) specMb.value = importedHardware.motherboard || '';
-
-      if (assignedToInput && !assignedToInput.value) {
-        assignedToInput.value = importedHardware.computer_name || '';
-      }
-
-      // Attach event listeners on spec inputs so manual user edits sync to state & dynamic fields
-      ['spec-serial', 'spec-cpu', 'spec-ram', 'spec-ram-type', 'spec-disk-type', 'spec-mac', 'spec-gpu', 'spec-disks', 'spec-motherboard'].forEach(id => {
-        const inputEl = document.getElementById(id);
-        if (inputEl && !inputEl.dataset.hasListener) {
-          inputEl.dataset.hasListener = 'true';
-          inputEl.addEventListener('input', () => {
-            if (!importedHardware) importedHardware = {};
-            const sSerial = document.getElementById('spec-serial');
-            const sCpu = document.getElementById('spec-cpu');
-            const sRam = document.getElementById('spec-ram');
-            const sRamType = document.getElementById('spec-ram-type');
-            const sDiskType = document.getElementById('spec-disk-type');
-            const sMac = document.getElementById('spec-mac');
-            const sGpu = document.getElementById('spec-gpu');
-            const sDisks = document.getElementById('spec-disks');
-            const sMb = document.getElementById('spec-motherboard');
-
-            if (sSerial) importedHardware.serial_number = sSerial.value.trim();
-            if (sCpu) importedHardware.cpu_info = sCpu.value.trim();
-            if (sRam) importedHardware.ram_gb = sRam.value.trim();
-            if (sRamType) importedHardware.ram_type = sRamType.value.trim();
-            if (sDiskType) importedHardware.disk_type = sDiskType.value.trim();
-            if (sMac) importedHardware.mac_address = sMac.value.trim();
-            if (sGpu) importedHardware.gpu = sGpu.value.trim();
-            if (sDisks) importedHardware.disks = sDisks.value.trim();
-            if (sMb) importedHardware.motherboard = sMb.value.trim();
-
-            if (subcategorySelect && subcategorySelect.value) {
-              loadDynamicFields(subcategorySelect.value);
-            }
-          });
-        }
-      });
-
-      if (specsEmpty) specsEmpty.classList.add('hidden');
-      if (specsGrid) specsGrid.classList.remove('hidden');
-
-      showStatus('✔ تم جلب مواصفات الجهاز! يمكنك تعديل أي حقل ثم الضغط على زر "إدخال" لحفظ البيانات يدوياً.', false);
-
     } catch (err) {
-      console.error('Error importing specs:', err);
-      showStatus('تعذر استيراد البيانات تلقائياً: ' + (err.message || err), true);
-    } finally {
+      console.error('Error loading hardware:', err);
+      showStatus('حدث خطأ أثناء الاستيراد: ' + (err.message || err), true);
       if (importDataBtn) {
         importDataBtn.disabled = false;
-        if (importedHardware) {
-          importDataBtn.innerHTML = '<span class="material-symbols-rounded text-lg">check_circle</span> تم عرض المواصفات (قابل للتعديل)';
-        } else {
-          importDataBtn.innerHTML = originalText;
-        }
+        importDataBtn.innerHTML = '<span class="material-symbols-rounded text-sm">download</span> استيراد البيانات';
       }
     }
   }
@@ -856,7 +823,6 @@ document.addEventListener('DOMContentLoaded', async () => {
           importedHardware = null;
           submitBtn.disabled = false;
           submitBtn.innerHTML = '<span class="material-symbols-rounded text-xl">add_circle</span> إدخال وتأكيد الأصل في المنظومة';
-          await autoGenerateItId();
         }, 2000);
 
       } catch (err) {
