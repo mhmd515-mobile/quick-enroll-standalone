@@ -67,26 +67,57 @@ try {
         $Motherboard = ($BoardObj.Manufacturer + ' ' + $BoardObj.Product).Trim() 
     }
 
-    # Disk Capacity & Type Detection (NVMe SSD, SSD, HDD)
+    # Disk Capacity & Type Detection (NVMe SSD, SATA SSD, HDD)
     $DiskItems = @()
     $DiskTypes = @()
-    $Drives = Get-CimInstance Win32_DiskDrive -ErrorAction SilentlyContinue
-    foreach ($d in $Drives) {
-        $sz = [math]::Round($d.Size / 1GB, 0)
-        $model = $d.Model
-        $interface = $d.InterfaceType
 
-        $typeStr = 'HDD'
-        if ($model -match 'NVMe' -or $interface -match 'NVMe') {
-            $typeStr = 'NVMe SSD'
-        } elseif ($model -match 'SSD' -or $d.MediaType -match 'SSD') {
+    $PhysDisks = Get-PhysicalDisk -ErrorAction SilentlyContinue
+    if ($PhysDisks) {
+        foreach ($pd in $PhysDisks) {
+            $sz = [math]::Round($pd.Size / 1GB, 0)
+            $model = $pd.FriendlyName
+            $bus = $pd.BusType
+            $media = [string]$pd.MediaType
+
             $typeStr = 'SSD'
-        }
+            if ($media -eq 'HDD') {
+                $typeStr = 'HDD'
+            } elseif ($bus -eq 'NVMe' -or $model -match 'NVMe') {
+                $typeStr = 'NVMe SSD'
+            } elseif ($media -eq 'SSD' -or $model -match 'SSD' -or $model -match 'Solid State') {
+                $typeStr = 'SSD'
+            } else {
+                if ($model -match 'SSD' -or $model -match 'SanDisk' -or $model -match 'Kingston' -or $model -match 'Crucial' -or $model -match 'EVO' -or $model -match 'PRO') {
+                    $typeStr = 'SSD'
+                } else {
+                    $typeStr = 'HDD'
+                }
+            }
 
-        if (-not ($DiskTypes -contains $typeStr)) {
-            $DiskTypes += $typeStr
+            if (-not ($DiskTypes -contains $typeStr)) {
+                $DiskTypes += $typeStr
+            }
+            $DiskItems += ($typeStr + ' - ' + $model + ' (' + $sz + ' GB)')
         }
-        $DiskItems += ($typeStr + ' - ' + $model + ' (' + $sz + ' GB)')
+    } else {
+        $Drives = Get-CimInstance Win32_DiskDrive -ErrorAction SilentlyContinue
+        foreach ($d in $Drives) {
+            $sz = [math]::Round($d.Size / 1GB, 0)
+            $model = $d.Model
+            $interface = $d.InterfaceType
+
+            $typeStr = 'HDD'
+            if ($model -match 'NVMe' -or $interface -match 'NVMe') {
+                $typeStr = 'NVMe SSD'
+            } elseif ($model -match 'SSD' -or $d.MediaType -match 'SSD' -or $model -match 'Solid State' -or $model -match 'SanDisk' -or $model -match 'Kingston' -or $model -match 'Crucial') {
+                $typeStr = 'SSD'
+            }
+
+            if (-not ($DiskTypes -contains $typeStr)) {
+                $DiskTypes += $typeStr
+            }
+            $DiskItems += ($typeStr + ' - ' + $model + ' (' + $sz + ' GB)')
+        }
     }
 
     $Disks = 'N/A'

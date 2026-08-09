@@ -578,10 +578,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     if ((has('نوع') && has('تخزين', 'قرص', 'هارد', 'disk', 'ssd', 'hdd')) || has('disk type')) {
       return importedHardware.disk_type || '';
     }
-    if (has('gpu name') || has('gpu') && has('name')) {
+    if (has('screen', 'شاشة', 'display', 'بوصة', 'inch') && !has('vram', 'gpu', 'كرت')) {
+      return importedHardware.screen_size || '';
+    }
+    if (has('gpu name') || (has('gpu') && has('name'))) {
       return importedHardware.gpu || '';
     }
-    if (fn === 'gpu' || (has('gpu', 'graphics', 'شاشة', 'كرت') && !has('vram', 'ram', 'name'))) {
+    if (fn === 'gpu' || has('gpu', 'graphics', 'كرت شاشة', 'كرت الشاشة', 'كرت جرافيك')) {
       return importedHardware.gpu || '';
     }
     if (has('ram', 'ذاكرة', 'memory') && !has('type', 'number of', 'vram', 'gpu', 'نوع', 'عدد', 'number')) {
