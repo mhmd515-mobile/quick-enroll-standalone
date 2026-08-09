@@ -5,9 +5,10 @@ param(
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 # Server Configuration
-$ServerHost   = '10.15.30.241' # Server IP
-$SupabasePort = '8001'         # Supabase API Port
-$WebPort      = '8087'         # Quick Enroll Standalone Nginx Port
+$ServerHost   = '10.15.30.241'             # Server IP
+$SupabasePort = '8001'                     # Supabase API Port
+$WebPort      = '8087'                     # Quick Enroll Standalone Nginx Port
+$WebPath      = ''                         # Optional subpath prefix e.g. 'quick-enroll-standalone' or leave empty if root
 
 $SupabaseUrl = "http://${ServerHost}:${SupabasePort}/rest/v1/pc_hardware_scans?on_conflict=serial_number"
 $SupabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiZXhwIjoyMDk5OTk5OTk5fQ.jUHvY4idV2KczdL5qLA4eX_unuyiv7rxW_8hHfnBF0I'
@@ -228,7 +229,12 @@ try {
     Write-Host 'Opening Quick Enrollment Form on Server URL...' -ForegroundColor Green
 
     $EscSerial = [uri]::EscapeDataString($SerialNumber)
-    $WebUrl = "http://${ServerHost}:${WebPort}/index.html?serial=${EscSerial}"
+    $PathPrefix = ""
+    if ($WebPath -and $WebPath.Trim() -ne "") {
+        $PathPrefix = "/" + $WebPath.Trim("/")
+    }
+
+    $WebUrl = "http://${ServerHost}:${WebPort}${PathPrefix}/index.html?serial=${EscSerial}"
     if ($DeviceType) {
         $EscType = [uri]::EscapeDataString($DeviceType)
         $WebUrl += "&type=${EscType}"
