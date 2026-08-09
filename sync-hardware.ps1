@@ -221,26 +221,48 @@ try {
         if ($NetAdapter.IPAddress) { $IpAddress = $NetAdapter.IPAddress[0] }
     }
 
-    # Screen Size Detection (from EDID via WMI - works for built-in laptop screens)
+    # Screen Size Detection (Multi-method: WMI + Registry EDID Fallback)
     $ScreenSize = 'N/A'
     try {
-        $monitors = Get-CimInstance -Namespace root\wmi -ClassName WmiMonitorBasicDisplayParams -ErrorAction SilentlyContinue
         $sizeList = @()
+
+        # Method 1: WMI WmiMonitorBasicDisplayParams
+        $monitors = Get-CimInstance -Namespace root\wmi -ClassName WmiMonitorBasicDisplayParams -ErrorAction SilentlyContinue
         foreach ($mon in $monitors) {
             $h = $mon.MaxHorizontalImageSize
             $v = $mon.MaxVerticalImageSize
             if ($h -and $v -and $h -gt 0 -and $v -gt 0) {
                 $diagCm = [math]::Sqrt(($h * $h) + ($v * $v))
                 $diagInch = [math]::Round($diagCm / 2.54, 1)
-                if ($diagInch -gt 5 -and $diagInch -lt 120) {
+                if ($diagInch -ge 10 -and $diagInch -le 100) {
                     $sizeList += $diagInch
                 }
             }
         }
+
+        # Method 2: Registry EDID Fallback (No admin rights needed)
+        if ($sizeList.Count -eq 0) {
+            $edidKeys = Get-ChildItem 'HKLM:\SYSTEM\CurrentControlSet\Enum\DISPLAY' -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.PSChildName -eq 'Device Parameters' }
+            foreach ($k in $edidKeys) {
+                $p = Get-ItemProperty $k.PSPath -ErrorAction SilentlyContinue
+                if ($p -and $p.EDID -and $p.EDID.Count -ge 23) {
+                    $h = [int]$p.EDID[21]
+                    $v = [int]$p.EDID[22]
+                    if ($h -gt 0 -and $v -gt 0) {
+                        $diagCm = [math]::Sqrt(($h * $h) + ($v * $v))
+                        $diagInch = [math]::Round($diagCm / 2.54, 1)
+                        if ($diagInch -ge 10 -and $diagInch -le 100) {
+                            $sizeList += $diagInch
+                        }
+                    }
+                }
+            }
+        }
+
         if ($sizeList.Count -gt 0) {
-            # Take the smallest screen (most likely the built-in laptop display)
+            # Take the smallest detected screen size (built-in laptop screen)
             $smallest = ($sizeList | Measure-Object -Minimum).Minimum
-            $ScreenSize = [string]$smallest + '"'
+            $ScreenSize = [string]$smallest
         }
     } catch {}
 

@@ -638,7 +638,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // Screen Size
-    if (has('screen', 'شاشة', 'display', 'بوصة', 'inch') && !has('vram', 'gpu', 'كرت')) {
+    if (has('screen', 'شاشة', 'display', 'بوصة', 'inch', 'مقاس', 'حجم') && !has('vram', 'gpu', 'كرت', 'رميز', 'رام', 'ram')) {
       return importedHardware.screen_size || '';
     }
 
