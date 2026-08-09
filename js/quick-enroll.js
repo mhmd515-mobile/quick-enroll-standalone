@@ -510,21 +510,60 @@ document.addEventListener('DOMContentLoaded', async () => {
           const optList = field.default_value
             ? field.default_value.split(',').map(s => s.trim()).filter(s => s)
             : [];
-          const matchedLower = matchedVal.toLowerCase().trim();
-          optList.forEach(opt => {
+
+          let bestOptIndex = -1;
+          let bestScore = 0;
+
+          const rawVal = String(matchedVal || '').trim();
+          const cleanVal = rawVal.toLowerCase();
+
+          // Extract number for numeric/screen size fields (e.g. "15.6" from "15.6"" or "15.6IN")
+          const numMatchVal = rawVal.match(/(\d+(?:\.\d+)?)/)?.[1];
+
+          optList.forEach((opt, idx) => {
             const optEl = document.createElement('option');
             optEl.value = opt;
             optEl.textContent = opt;
-            const optLower = opt.toLowerCase().trim();
-            if (matchedLower && (
-              optLower === matchedLower ||
-              matchedLower.includes(optLower) ||
-              optLower.includes(matchedLower)
-            )) {
-              optEl.selected = true;
-            }
             inputEl.appendChild(optEl);
+
+            if (!cleanVal) return;
+
+            const optClean = opt.toLowerCase().trim();
+            const numOptVal = opt.match(/(\d+(?:\.\d+)?)/)?.[1];
+            let score = 0;
+
+            // 1. Exact Match -> Score 100
+            if (optClean === cleanVal) {
+              score = 100;
+            }
+            // 2. Numeric / Screen Size match (e.g. 15.6 in "15.6"" matches 15.6 in "15.6IN" or "15.6 بوصة")
+            else if (numMatchVal && numOptVal && numMatchVal === numOptVal) {
+              score = 90;
+            }
+            // 3. Storage Type specific smart scoring
+            else if ((cleanVal.includes('sata') || cleanVal.includes('ssd')) && optClean.includes('sata')) {
+              score = 85;
+            } else if ((cleanVal.includes('nvme') || cleanVal.includes('m.2')) && (optClean.includes('m.2') || optClean.includes('nvme'))) {
+              score = 85;
+            } else if (cleanVal.includes('ssd') && optClean.includes('ssd') && !cleanVal.includes('hdd')) {
+              score = 80;
+            } else if (cleanVal.includes('hdd') && optClean.includes('hdd')) {
+              score = 80;
+            }
+            // 4. Substring Match
+            else if (cleanVal.includes(optClean) || optClean.includes(cleanVal)) {
+              score = 50;
+            }
+
+            if (score > bestScore) {
+              bestScore = score;
+              bestOptIndex = idx;
+            }
           });
+
+          if (bestOptIndex >= 0) {
+            inputEl.selectedIndex = bestOptIndex + 1; // +1 for placeholder option
+          }
 
         } else {
           inputEl = document.createElement('input');
@@ -572,59 +611,76 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (has('ram type', 'memory type') || (has('type') && has('ram', 'memory', 'ذاكرة', 'رام'))) {
       return importedHardware.ram_type || 'DDR4';
     }
-    if (has('storage') && has('type')) {
+
+    // Specific Indexed Disk Storage Fields (Storage-1, Storage-1 Type, Storage-2, Storage-2 Type)
+    if (has('storage', 'تخزين', 'قرص', 'هارد', 'disk')) {
+      const idxMatch = fn.match(/(?:storage|تخزين|قرص|هارد|disk)[-\s]?(\d+)/i);
+      if (idxMatch) {
+        const diskIdx = parseInt(idxMatch[1]) - 1;
+        const diskEntries = (importedHardware.disks || '').split('|').map(s => s.trim()).filter(s => s);
+        const diskEntry = diskEntries[diskIdx];
+
+        if (has('type', 'نوع')) {
+          if (!diskEntry) return importedHardware.disk_type || '';
+          const typeMatch = diskEntry.match(/^(.+?)\s*-/);
+          return typeMatch ? typeMatch[1].trim() : (importedHardware.disk_type || '');
+        } else {
+          if (!diskEntry) return '';
+          const sizeMatch = diskEntry.match(/\((\d+)\s*GB\)/i);
+          return sizeMatch ? sizeMatch[1] : '';
+        }
+      }
+    }
+
+    // General Storage Type
+    if ((has('storage', 'تخزين', 'قرص', 'هارد', 'disk') && has('type', 'نوع')) || has('disk type')) {
       return importedHardware.disk_type || '';
     }
-    if ((has('نوع') && has('تخزين', 'قرص', 'هارد', 'disk', 'ssd', 'hdd')) || has('disk type')) {
-      return importedHardware.disk_type || '';
-    }
+
+    // Screen Size
     if (has('screen', 'شاشة', 'display', 'بوصة', 'inch') && !has('vram', 'gpu', 'كرت')) {
       return importedHardware.screen_size || '';
     }
+
+    // GPU
     if (has('gpu name') || (has('gpu') && has('name'))) {
       return importedHardware.gpu || '';
     }
     if (fn === 'gpu' || has('gpu', 'graphics', 'كرت شاشة', 'كرت الشاشة', 'كرت جرافيك')) {
       return importedHardware.gpu || '';
     }
+
+    // RAM Capacity
     if (has('ram', 'ذاكرة', 'memory') && !has('type', 'number of', 'vram', 'gpu', 'نوع', 'عدد', 'number')) {
       const gb = importedHardware.ram_gb;
       return (gb !== undefined && gb !== null && gb !== '') ? String(gb) : '';
     }
+
+    // CPU
     if (has('cpu', 'processor', 'معالج')) {
       return importedHardware.cpu_info || '';
     }
-    if (has('storage')) {
-      const idxMatch = fn.match(/storage[-\s]?(\d+)/);
-      const diskIdx = idxMatch ? parseInt(idxMatch[1]) - 1 : 0;
-      const diskEntries = (importedHardware.disks || '').split('|').map(s => s.trim()).filter(s => s);
-      const diskEntry = diskEntries[diskIdx];
 
-      if (has('type')) {
-        if (!diskEntry) return '';
-        const typeMatch = diskEntry.match(/^(.+?)\s*-/);
-        return typeMatch ? typeMatch[1].trim() : (importedHardware.disk_type || '');
-      } else {
-        if (!diskEntry) return '';
-        const sizeMatch = diskEntry.match(/\((\d+)\s*GB\)/i);
-        return sizeMatch ? sizeMatch[1] : '';
-      }
-    }
+    // All Disks Summary
     if (has('هارد', 'قرص', 'أقراص', 'تخزين', 'disk', 'ssd', 'hdd', 'nvme') && !has('نوع', 'type')) {
       return importedHardware.disks || '';
     }
+
+    // Motherboard
     if (has('motherboard', 'mother board', 'لوحة', 'board')) {
       return importedHardware.motherboard || '';
     }
+
+    // MAC Address
     if (has('mac', 'فيزيائي', 'physical')) {
       return importedHardware.mac_address || '';
     }
+
+    // Serial Number
     if (has('serial', 'سيريال', 'تسلسلي')) {
       return importedHardware.serial_number || '';
     }
-    if (has('screen', 'شاشة', 'display', 'بوصة', 'inch', 'size', 'حجم') && !has('vram', 'gpu', 'كرت')) {
-      return importedHardware.screen_size || '';
-    }
+
     return '';
   }
 
