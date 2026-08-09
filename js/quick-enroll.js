@@ -184,9 +184,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     await performImportData();
   }
 
-  // Populate Mandatory Dropdowns & IT ID
+  // Populate Mandatory Dropdowns
   await loadDropdowns();
-  await autoGenerateItId();
 
   // Category Change Listener to load Subcategories
   if (categorySelect) {

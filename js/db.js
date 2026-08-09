@@ -1,8 +1,3 @@
-// js/db.js - Standalone Supabase client connector
-
-const SUPABASE_URL = 'http://10.15.30.241:8001';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiZXhwIjoyMDk5OTk5OTk5fQ.jUHvY4idV2KczdL5qLA4eX_unuyiv7rxW_8hHfnBF0I';
-
 // ─── Storage Helper ──────────
 const _memStore = {};
 const store = {
@@ -20,11 +15,22 @@ const store = {
   }
 };
 
+const DEFAULT_SUPABASE_URL = 'http://10.15.30.241:8001';
+function getSupabaseUrl() {
+  return store.get('custom_supabase_url') || DEFAULT_SUPABASE_URL;
+}
+
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiZXhwIjoyMDk5OTk5OTk5fQ.jUHvY4idV2KczdL5qLA4eX_unuyiv7rxW_8hHfnBF0I';
+
 // Initialize Supabase Client lazily
 function getSupabaseClient() {
-  if (window._supabaseClientInstance) return window._supabaseClientInstance;
+  const url = getSupabaseUrl();
+  if (window._supabaseClientInstance && window._supabaseClientUrl === url) {
+    return window._supabaseClientInstance;
+  }
   if (window.supabase) {
-    window._supabaseClientInstance = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    window._supabaseClientUrl = url;
+    window._supabaseClientInstance = window.supabase.createClient(url, SUPABASE_KEY);
     return window._supabaseClientInstance;
   }
   return null;
