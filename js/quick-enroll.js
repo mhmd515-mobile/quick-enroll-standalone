@@ -22,6 +22,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   const assignedToInput = document.getElementById('assigned-to');
   const storIdInput = document.getElementById('stor-id');
   const notesInput = document.getElementById('asset-notes');
+  const systemAssetAccSelect = document.getElementById('system-asset-accessory-select');
+  const addSystemAssetAccBtn = document.getElementById('add-system-asset-acc-btn');
+  const linkedSystemAssetsList = document.getElementById('linked-system-assets-list');
+
+  let linkedSystemAssets = [];
 
   // Accessories chips interaction logic
   const accChips = document.querySelectorAll('.acc-chip');
@@ -36,38 +41,86 @@ document.addEventListener('DOMContentLoaded', async () => {
           chip.classList.remove('bg-brand/20', 'text-brand', 'border-brand', 'font-bold', 'shadow-sm');
           chip.classList.add('bg-layer-3', 'text-ink-200', 'border-edge');
         }
-        updateNotesFromChips();
+        updateNotesFromChipsAndLinkedAssets();
       });
     });
   }
 
-  function updateNotesFromChips() {
+  // System Assets Accessories Add Button Listener
+  if (addSystemAssetAccBtn && systemAssetAccSelect) {
+    addSystemAssetAccBtn.addEventListener('click', () => {
+      const selectedOpt = systemAssetAccSelect.options[systemAssetAccSelect.selectedIndex];
+      if (!selectedOpt || !selectedOpt.value) return;
+
+      const assetId = selectedOpt.value;
+      const itId = selectedOpt.dataset.it || '';
+      const subName = selectedOpt.dataset.sub || '';
+      const sn = selectedOpt.dataset.sn || '';
+
+      if (linkedSystemAssets.some(a => a.id === assetId)) {
+        alert('هذا الأصل مضاف كـ ملحق بالفعل');
+        return;
+      }
+
+      linkedSystemAssets.push({ id: assetId, itId, subName, sn });
+      renderLinkedSystemAssets();
+      updateNotesFromChipsAndLinkedAssets();
+    });
+  }
+
+  function renderLinkedSystemAssets() {
+    if (!linkedSystemAssetsList) return;
+    linkedSystemAssetsList.innerHTML = '';
+    linkedSystemAssets.forEach((acc, idx) => {
+      const badge = document.createElement('div');
+      badge.className = 'px-3 py-1.5 rounded-xl border border-brand/40 bg-brand/10 text-ink-100 text-xs font-semibold flex items-center gap-1.5 shadow-sm';
+      badge.innerHTML = `
+        <span>🔗</span>
+        <span class="text-brand font-bold">${acc.itId}</span>
+        <span>- ${acc.subName}${acc.sn ? ' (' + acc.sn + ')' : ''}</span>
+        <button type="button" class="text-bad hover:bg-bad/20 rounded-full w-4 h-4 flex items-center justify-center font-bold text-xs ml-1 cursor-pointer" title="إزالة">×</button>
+      `;
+      badge.querySelector('button').addEventListener('click', () => {
+        linkedSystemAssets.splice(idx, 1);
+        renderLinkedSystemAssets();
+        updateNotesFromChipsAndLinkedAssets();
+      });
+      linkedSystemAssetsList.appendChild(badge);
+    });
+  }
+
+  function updateNotesFromChipsAndLinkedAssets() {
     if (!notesInput) return;
-    const selectedAcc = Array.from(document.querySelectorAll('.acc-chip.active-chip'))
+    const selectedChips = Array.from(document.querySelectorAll('.acc-chip.active-chip'))
       .map(c => c.dataset.acc);
+
+    const linkedAssetStrs = linkedSystemAssets.map(a => `[${a.itId} - ${a.subName}${a.sn ? ' S/N:' + a.sn : ''}]`);
 
     let currentVal = notesInput.value || '';
     let customPart = '';
 
     if (currentVal.includes(' | ')) {
       const parts = currentVal.split(' | ');
-      if (parts[0].startsWith('الملحقات:')) {
-        customPart = parts.slice(1).join(' | ').trim();
-      } else {
-        customPart = currentVal.trim();
-      }
-    } else if (currentVal.startsWith('الملحقات:')) {
+      const customParts = parts.filter(p => !p.trim().startsWith('الملحقات:') && !p.trim().startsWith('أصول ملحقة من المنظومة:'));
+      customPart = customParts.join(' | ').trim();
+    } else if (currentVal.startsWith('الملحقات:') || currentVal.startsWith('أصول ملحقة من المنظومة:')) {
       customPart = '';
     } else {
       customPart = currentVal.trim();
     }
 
-    if (selectedAcc.length > 0) {
-      const accStr = 'الملحقات: ' + selectedAcc.join('، ');
-      notesInput.value = customPart ? `${accStr} | ${customPart}` : accStr;
-    } else {
-      notesInput.value = customPart;
+    const sectionParts = [];
+    if (selectedChips.length > 0) {
+      sectionParts.push('الملحقات: ' + selectedChips.join('، '));
     }
+    if (linkedAssetStrs.length > 0) {
+      sectionParts.push('أصول ملحقة من المنظومة: ' + linkedAssetStrs.join('، '));
+    }
+    if (customPart) {
+      sectionParts.push(customPart);
+    }
+
+    notesInput.value = sectionParts.join(' | ');
   }
 
   // Step 2 Elements (Import Data Button & Preview)
@@ -160,7 +213,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           (locs || []).map(l => `<option value="${l.id}">${l.name}</option>`).join('');
       }
 
-      // Asset Statuses
+      // Populate System Assets for Accessories Dropdown
+      await loadSystemAssetsForAccessories();
       const { data: stats } = await client.from('asset_statuses').select('id, name').order('id');
       if (statusSelect) {
         statusSelect.innerHTML = '<option value="">اختر حالة الأصل...</option>' +
@@ -179,6 +233,35 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     } catch (err) {
       console.error('Error loading dropdown options:', err);
+    }
+  }
+
+  async function loadSystemAssetsForAccessories() {
+    if (!systemAssetAccSelect) return;
+    try {
+      systemAssetAccSelect.innerHTML = '<option value="">جاري تحميل الأصول المتاحة...</option>';
+      const { data: assets, error } = await client
+        .from('assets')
+        .select('id, it_id, Serial_number, sub_Categories(name)')
+        .order('it_id', { ascending: true })
+        .limit(500);
+
+      if (error) throw error;
+
+      if (!assets || assets.length === 0) {
+        systemAssetAccSelect.innerHTML = '<option value="">لا توجد أصول أخرى مسجلة في المنظومة حالياً</option>';
+        return;
+      }
+
+      systemAssetAccSelect.innerHTML = '<option value="">اختر أصلاً مسجلاً لإضافته كـ ملحق (شاشة، طابعة، ملحق آخر)...</option>' +
+        assets.map(a => {
+          const subName = a.sub_Categories?.name || 'أصل';
+          const sn = a.Serial_number ? ` (S/N: ${a.Serial_number})` : '';
+          return `<option value="${a.id}" data-it="${a.it_id}" data-sub="${subName}" data-sn="${a.Serial_number || ''}">${a.it_id} - ${subName}${sn}</option>`;
+        }).join('');
+    } catch (err) {
+      console.error('Error loading system assets for accessories:', err);
+      systemAssetAccSelect.innerHTML = '<option value="">تعذر تحميل الأصول من المنظومة</option>';
     }
   }
 
@@ -709,6 +792,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Reset form for next device entry in standalone mode
         setTimeout(async () => {
           form.reset();
+          linkedSystemAssets = [];
+          renderLinkedSystemAssets();
           if (notesInput) notesInput.value = '';
           document.querySelectorAll('.acc-chip.active-chip').forEach(chip => {
             chip.classList.remove('active-chip', 'bg-brand/20', 'text-brand', 'border-brand', 'font-bold', 'shadow-sm');
