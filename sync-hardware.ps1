@@ -266,6 +266,10 @@ try {
         }
     } catch {}
 
+    Write-Host '============================================' -ForegroundColor Cyan
+    Write-Host ('  Detected Screen Size: ' + $ScreenSize + ' inches') -ForegroundColor Yellow
+    Write-Host '============================================' -ForegroundColor Cyan
+
     Write-Host 'Hardware scan complete — preparing enrollment URL...' -ForegroundColor Cyan
 
     Write-Host 'Building URL and opening Quick Enrollment Form...' -ForegroundColor Green
@@ -301,10 +305,10 @@ try {
     Write-Host '============================================' -ForegroundColor Green
     Write-Host '  SUCCESS! Hardware scanned successfully.' -ForegroundColor Green
     Write-Host ('  Serial S/N:   ' + $SerialNumber) -ForegroundColor White
+    Write-Host ('  Screen Size:  ' + $ScreenSize + ' inches') -ForegroundColor Yellow
     Write-Host ('  RAM:          ' + $RamType + ' ' + $RamGb + ' GB (' + $RamCount + ' sticks)') -ForegroundColor White
     Write-Host ('  VRAM:         ' + $VramGbTotal + ' GB') -ForegroundColor White
     Write-Host ('  Disk:         ' + $DiskTypeSummary) -ForegroundColor White
-    Write-Host ('  Screen:       ' + $ScreenSize) -ForegroundColor White
     Write-Host ('  Opening URL:  ' + $WebUrl) -ForegroundColor Cyan
     Write-Host '============================================' -ForegroundColor Green
 }
