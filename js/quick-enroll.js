@@ -621,7 +621,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const diskEntry = diskEntries[diskIdx];
 
         if (has('type', 'نوع')) {
-          if (!diskEntry) return importedHardware.disk_type || '';
+          if (!diskEntry) return '';
           const typeMatch = diskEntry.match(/^(.+?)\s*-/);
           return typeMatch ? typeMatch[1].trim() : (importedHardware.disk_type || '');
         } else {
