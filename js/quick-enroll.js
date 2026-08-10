@@ -682,8 +682,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       return importedHardware.serial_number || '';
     }
 
-    // Windows Activation Key
-    if (has('windows', 'activation', 'تفعيل', 'ويندوز', 'ويندز', 'رمز تفعيل', 'كود تفعيل')) {
+    // Windows Activation Key ONLY (Exclude Office fields)
+    if (has('office', 'اوفس', 'أوفيس', 'اوفيس')) {
+      return '';
+    }
+    if (has('windows', 'win', 'ويندوز', 'ويندز') || (has('activation', 'تفعيل', 'رمز تفعيل', 'كود تفعيل') && !has('office', 'اوفس', 'أوفيس', 'اوفيس'))) {
       return importedHardware.windows_key || '';
     }
 
