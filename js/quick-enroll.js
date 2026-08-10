@@ -537,7 +537,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (optClean === cleanVal) {
               score = 100;
             }
-            // 2. Numeric / Screen Size match (e.g. 15.6 in "15.6"" matches 15.6 in "15.6IN" or "15.6 بوصة")
+            // 2. YES / NO & نعم / لا smart scoring
+            else if ((cleanVal === 'yes' || cleanVal === 'y') && (optClean === 'yes' || optClean === 'نعم')) {
+              score = 100;
+            } else if ((cleanVal === 'no' || cleanVal === 'n') && (optClean === 'no' || optClean === 'لا')) {
+              score = 100;
+            }
+            // 3. Numeric / Screen Size match (e.g. 15.6 in "15.6"" matches 15.6 in "15.6IN" or "15.6 بوصة")
             else if (numMatchVal && numOptVal && numMatchVal === numOptVal) {
               score = 90;
             }
@@ -643,12 +649,22 @@ document.addEventListener('DOMContentLoaded', async () => {
       return importedHardware.screen_size || '';
     }
 
-    // GPU
-    if (has('gpu name') || (has('gpu') && has('name'))) {
+    // GPU Name (Specific text input e.g. GPU Name)
+    if (has('gpu name', 'اسم كرت') || (has('gpu') && has('name', 'اسم'))) {
       return importedHardware.gpu || '';
     }
+    // GPU Dedicated Check (YES/NO for general GPU field)
     if (fn === 'gpu' || has('gpu', 'graphics', 'كرت شاشة', 'كرت الشاشة', 'كرت جرافيك')) {
-      return importedHardware.gpu || '';
+      const gpuStr = (importedHardware.gpu || '').toLowerCase();
+      const hasDedicated = gpuStr.includes('nvidia') ||
+                           gpuStr.includes('geforce') ||
+                           gpuStr.includes('rtx') ||
+                           gpuStr.includes('gtx') ||
+                           gpuStr.includes('quadro') ||
+                           gpuStr.includes('radeon') ||
+                           gpuStr.includes('rx ') ||
+                           gpuStr.includes('intel arc');
+      return hasDedicated ? 'YES' : 'NO';
     }
 
     // RAM Capacity
