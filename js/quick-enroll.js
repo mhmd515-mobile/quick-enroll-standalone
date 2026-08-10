@@ -200,6 +200,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       mac_address   : urlParams.get('mac')         || '',
       ip_address    : urlParams.get('ip')          || '',
       screen_size   : urlParams.get('screen')      || '',
+      windows_key   : urlParams.get('winkey')      || '',
     };
 
     // Pre-fill any visible spec inputs if they exist in the HTML
@@ -679,6 +680,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Serial Number
     if (has('serial', 'سيريال', 'تسلسلي')) {
       return importedHardware.serial_number || '';
+    }
+
+    // Windows Activation Key
+    if (has('windows', 'activation', 'تفعيل', 'ويندوز', 'ويندز', 'رمز تفعيل', 'كود تفعيل')) {
+      return importedHardware.windows_key || '';
     }
 
     return '';

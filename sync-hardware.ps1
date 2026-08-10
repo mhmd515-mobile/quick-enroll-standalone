@@ -266,8 +266,43 @@ try {
         }
     } catch {}
 
+    # Windows Activation Key Detection (OEM BIOS Key or Decoded Registry Key)
+    $WinKey = ''
+    try {
+        $WinKey = (Get-CimInstance -ClassName SoftwareLicensingService -ErrorAction SilentlyContinue).OA3xOriginalProductKey
+    } catch {}
+
+    if (-not $WinKey) {
+        try {
+            $regPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion"
+            $dp = (Get-ItemProperty -Path $regPath -Name "DigitalProductId" -ErrorAction SilentlyContinue).DigitalProductId
+            if ($dp) {
+                $digitalProductId = [byte[]]$dp
+                $keyOffset = 52
+                $isWin8 = ($digitalProductId[$keyOffset + 14] -shr 3) -band 1
+                $digitalProductId[$keyOffset + 14] = ($digitalProductId[$keyOffset + 14] -band 247) -bor (($isWin8 -band 1) -shl 3)
+                $chars = "BCDFGHJKMPQRTVWXY2346789"
+                $pk = ""
+                for ($i = 24; $i -ge 0; $i--) {
+                    $c = 0
+                    for ($j = 14; $j -ge 0; $j--) {
+                        $c = $c * 256 + $digitalProductId[$j + $keyOffset]
+                        $digitalProductId[$j + $keyOffset] = [math]::Floor([double]($c / 24))
+                        $c = $c % 24
+                    }
+                    $pk = $chars[$c] + $pk
+                    if (($i % 5 -eq 0) -and ($i -ne 0)) { $pk = "-" + $pk }
+                }
+                $WinKey = $pk
+            }
+        } catch {}
+    }
+
     Write-Host '============================================' -ForegroundColor Cyan
     Write-Host ('  Detected Screen Size: ' + $ScreenSize + ' inches') -ForegroundColor Yellow
+    if ($WinKey) {
+        Write-Host ('  Windows Key:          ' + $WinKey) -ForegroundColor Green
+    }
     Write-Host '============================================' -ForegroundColor Cyan
 
     Write-Host 'Hardware scan complete — preparing enrollment URL...' -ForegroundColor Cyan
@@ -295,6 +330,9 @@ try {
     $Params.Add("mac="    + [uri]::EscapeDataString($MacAddress))
     $Params.Add("ip="     + [uri]::EscapeDataString($IpAddress))
     $Params.Add("screen=" + [uri]::EscapeDataString($ScreenSize))
+    if ($WinKey) {
+        $Params.Add("winkey=" + [uri]::EscapeDataString($WinKey))
+    }
     if ($DeviceType) {
         $Params.Add("type=" + [uri]::EscapeDataString($DeviceType))
     }
